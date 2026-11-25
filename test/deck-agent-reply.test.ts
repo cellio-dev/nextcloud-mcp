@@ -51,14 +51,24 @@ describe("agent reply guardrails", () => {
     const watcher = new DeckWatcher(config);
     (watcher as unknown as { state: Record<string, unknown> }).state = {
       version: 2,
-      cards: { "7": { cardId: 7, status: "claimed", agentRepliedAt: "t" } },
-      comments: {},
+      cards: { "7": { cardId: 7, status: "claimed" } },
+      comments: {
+        "1": {
+          commentId: 1,
+          cardId: 7,
+          boardId: 1,
+          stackId: 2,
+          status: "claimed",
+          agentRepliedAt: "t",
+          author: "alice",
+        },
+      },
       processedCommentIds: {},
       cardLastModified: {},
     };
     assert.throws(
       () => watcher.validateAgentComment(7, "Hello!"),
-      /already has an agent reply/
+      /already have a reply/
     );
     assert.throws(
       () =>

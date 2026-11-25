@@ -378,6 +378,18 @@ export class DeckWatcher {
         continue;
       }
 
+      // New @cursor on this card supersedes any stuck pending/claimed jobs.
+      for (const c of Object.values(this.state.comments)) {
+        if (
+          c.cardId === card.id &&
+          (c.status === "pending" || c.status === "claimed")
+        ) {
+          c.status = "completed";
+          c.completedAt = nowIso();
+          c.updatedAt = nowIso();
+        }
+      }
+
       const watched: WatchedComment = {
         commentId: comment.id,
         cardId: card.id,
@@ -727,24 +739,38 @@ export class DeckWatcher {
       );
     }
     if (!w.oneReplyPerJob) return;
-    const cardKey = String(cardId);
-    const card = this.state.cards[cardKey];
-    if (card?.agentRepliedAt) {
+    const open = Object.values(this.state.comments).filter(
+      (c) =>
+        c.cardId === cardId &&
+        (c.status === "pending" || c.status === "claimed")
+    );
+    if (open.length === 0) return;
+    const waiting = open.filter((c) => !c.agentRepliedAt);
+    if (waiting.length === 0) {
       throw new Error(
-        `Card ${cardId} already has an agent reply for this job. Call deck_watch_complete instead of posting another comment.`
+        `Card ${cardId}: open jobs already have a reply. Call deck_watch_complete, or post a new @cursor comment on the card.`
       );
     }
-    for (const comment of Object.values(this.state.comments)) {
-      if (
-        comment.cardId === cardId &&
-        (comment.status === "pending" || comment.status === "claimed") &&
-        comment.agentRepliedAt
-      ) {
-        throw new Error(
-          `Card ${cardId} already has an agent reply for this job. Call deck_watch_complete instead of posting another comment.`
-        );
+  }
+
+  /** Clear stuck queue rows for a card (e.g. after a failed automation run). */
+  async resetCard(cardId: number): Promise<{ cleared: boolean }> {
+    const key = String(cardId);
+    let cleared = false;
+    if (this.state.cards[key]) {
+      delete this.state.cards[key];
+      cleared = true;
+    }
+    for (const [commentKey, comment] of Object.entries(this.state.comments)) {
+      if (comment.cardId === cardId) {
+        delete this.state.comments[commentKey];
+        cleared = true;
       }
     }
+    if (cleared) {
+      await saveWatchState(this.config.deckWatch.statePath, this.state);
+    }
+    return { cleared };
   }
 
   async recordAgentReply(cardId: number): Promise<void> {

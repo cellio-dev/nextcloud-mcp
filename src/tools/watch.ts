@@ -55,7 +55,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_pending",
     {
       description:
-        "List pending work: assigned cards and comment requests (status=pending|claimed|completed|open).",
+        "List pending work. If empty after a webhook, call deck_watch_poll once then retry.",
       inputSchema: {
         status: z
           .enum(["pending", "claimed", "completed", "open"])
@@ -70,6 +70,25 @@ export function registerWatchTools(server: McpServer): void {
           cards: watcher.pending(status),
           comments: watcher.pendingComments(status),
         });
+      } catch (error) {
+        return errorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
+    "deck_watch_reset_card",
+    {
+      description:
+        "Clear watcher queue state for one card after a stuck/failed run. Does not change the Deck card itself.",
+      inputSchema: {
+        cardId: z.number().int().positive(),
+      },
+    },
+    async ({ cardId }) => {
+      try {
+        const watcher = requireWatcher();
+        return textResult(await watcher.resetCard(cardId));
       } catch (error) {
         return errorResult(error);
       }
