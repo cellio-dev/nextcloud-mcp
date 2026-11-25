@@ -337,7 +337,9 @@ export class DeckWatcher {
         c.cardId === card.id &&
         (c.status === "pending" || c.status === "claimed")
     );
+    const watch = this.config.deckWatch;
     const shouldScan =
+      watch.commentTrigger ||
       assigned ||
       hasOpenComment ||
       (card.commentsUnread ?? 0) > 0 ||
@@ -363,7 +365,25 @@ export class DeckWatcher {
       if (typeof comment.id !== "number" || !comment.message) continue;
       const commentKey = String(comment.id);
       if (this.state.processedCommentIds[commentKey]) continue;
-      if (this.state.comments[commentKey]) continue;
+
+      const existingWatched = this.state.comments[commentKey];
+      if (existingWatched?.webhookSentAt) continue;
+      if (existingWatched && !existingWatched.webhookSentAt) {
+        if (this.config.deckWatch.webhookUrl) {
+          try {
+            await this.maybeSendCommentWebhook(existingWatched);
+            this.state.processedCommentIds[commentKey] = true;
+          } catch (error) {
+            existingWatched.lastError =
+              error instanceof Error ? error.message : String(error);
+            console.error(
+              `[deck-watch] comment webhook retry failed comment=${comment.id}:`,
+              existingWatched.lastError
+            );
+          }
+        }
+        continue;
+      }
 
       const author = comment.actorId ?? "";
       if (author === this.config.deckWatch.agentUser) {
@@ -450,8 +470,21 @@ export class DeckWatcher {
         }
       }
 
-      await this.maybeSendCommentWebhook(watched);
-      this.state.processedCommentIds[commentKey] = true;
+      if (this.config.deckWatch.webhookUrl) {
+        try {
+          await this.maybeSendCommentWebhook(watched);
+          this.state.processedCommentIds[commentKey] = true;
+        } catch (error) {
+          watched.lastError =
+            error instanceof Error ? error.message : String(error);
+          console.error(
+            `[deck-watch] comment webhook failed comment=${comment.id}:`,
+            watched.lastError
+          );
+        }
+      } else {
+        this.state.processedCommentIds[commentKey] = true;
+      }
     }
   }
 
