@@ -7,11 +7,22 @@ export type DeckWatchConfig = {
   statePath: string;
   webhookUrl: string;
   webhookToken: string;
+  /** Post watcher "seen/queued" comments when work is detected. */
   autoAck: boolean;
+  /** Queue cards when assigned to the agent user. */
+  assignmentTrigger: boolean;
   /** Watch card comments for mention triggers (e.g. @cursor). */
   commentTrigger: boolean;
   /** Case-insensitive mention token that must appear in a comment. */
   commentMention: string;
+  /** deck_watch_claim posts no comment unless message is provided. */
+  silentClaim: boolean;
+  /** deck_watch_complete posts an @cursor-done comment on the card. */
+  postDoneComment: boolean;
+  /** On complete, unassign the agent user. */
+  completeUnassignAgent: boolean;
+  /** On complete, assign the owner user. */
+  completeAssignOwner: boolean;
 };
 
 export type AppConfig = {
@@ -109,9 +120,14 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
       ),
       webhookUrl: optional("DECK_WATCH_WEBHOOK_URL", ""),
       webhookToken: optional("DECK_WATCH_WEBHOOK_TOKEN", ""),
-      autoAck: parseBool("DECK_WATCH_AUTO_ACK", true),
+      autoAck: parseBool("DECK_WATCH_AUTO_ACK", false),
+      assignmentTrigger: parseBool("DECK_WATCH_ASSIGNMENT_TRIGGER", false),
       commentTrigger: parseBool("DECK_WATCH_COMMENT_TRIGGER", true),
       commentMention: optional("DECK_WATCH_COMMENT_MENTION", "@cursor"),
+      silentClaim: parseBool("DECK_WATCH_SILENT_CLAIM", true),
+      postDoneComment: parseBool("DECK_WATCH_POST_DONE_COMMENT", false),
+      completeUnassignAgent: parseBool("DECK_WATCH_COMPLETE_UNASSIGN_AGENT", false),
+      completeAssignOwner: parseBool("DECK_WATCH_COMPLETE_ASSIGN_OWNER", false),
     },
   };
 }

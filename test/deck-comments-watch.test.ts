@@ -42,7 +42,7 @@ describe("deck comment triggers", () => {
         DECK_WATCH_AGENT_USER: "cursor",
         DECK_WATCH_OWNER_USER: "alice",
         DECK_WATCH_STATE_PATH: statePath,
-        DECK_WATCH_AUTO_ACK: "true",
+        DECK_WATCH_AUTO_ACK: "false",
         DECK_WATCH_COMMENT_TRIGGER: "true",
         DECK_WATCH_COMMENT_MENTION: "@cursor",
         DECK_WATCH_WEBHOOK_URL: "https://hooks.example.com/automation",

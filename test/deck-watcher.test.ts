@@ -121,6 +121,11 @@ describe("deck watcher queue", () => {
         DECK_WATCH_OWNER_USER: "alice",
         DECK_WATCH_STATE_PATH: statePath,
         DECK_WATCH_AUTO_ACK: "false",
+        DECK_WATCH_ASSIGNMENT_TRIGGER: "true",
+        DECK_WATCH_SILENT_CLAIM: "true",
+        DECK_WATCH_POST_DONE_COMMENT: "false",
+        DECK_WATCH_COMPLETE_UNASSIGN_AGENT: "true",
+        DECK_WATCH_COMPLETE_ASSIGN_OWNER: "true",
         DECK_WATCH_INTERVAL_SEC: "30",
       },
       async () => {
@@ -139,6 +144,11 @@ describe("deck watcher queue", () => {
           assert.equal(claimed.card.status, "claimed");
           assert.equal(claimed.movedToStackId, undefined);
           assert.equal(claimed.card.stackId, 10);
+          assert.ok(
+            !calls.some(
+              (c) => c.startsWith("POST") && c.includes("/comments")
+            )
+          );
 
           const completed = await watcher.complete(42, "Watcher shipped");
           assert.equal(completed.card.status, "completed");
@@ -177,6 +187,8 @@ describe("deck watcher queue", () => {
         DECK_WATCH_OWNER_USER: "alice",
         DECK_WATCH_STATE_PATH: statePath,
         DECK_WATCH_AUTO_ACK: "false",
+        DECK_WATCH_ASSIGNMENT_TRIGGER: "true",
+        DECK_WATCH_COMMENT_TRIGGER: "false",
         DECK_WATCH_INTERVAL_SEC: "30",
       },
       async () => {
