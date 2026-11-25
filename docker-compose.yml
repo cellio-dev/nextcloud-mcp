@@ -11,9 +11,15 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 3000
+      DECK_WATCH_STATE_PATH: /data/deck-watch-state.json
+    volumes:
+      - nextcloud-mcp-data:/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  nextcloud-mcp-data:

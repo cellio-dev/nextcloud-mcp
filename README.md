@@ -2,7 +2,7 @@
 
 Docker-deployable [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cursor (and other MCP clients) collaborate with you through your Nextcloud instance.
 
-Use **Files** for docs and artifacts, **Deck** for boards/cards/comments, plus **Shares**, **Notes**, and **Search**.
+Use **Files** for docs and artifacts, **Deck** for boards/cards/comments, plus **Shares**, **Notes**, and **Search**. Optional **Deck watcher** polls for cards assigned to an agent user and can webhook a Cursor Automation.
 
 ## Features
 
@@ -11,6 +11,7 @@ Use **Files** for docs and artifacts, **Deck** for boards/cards/comments, plus *
 | System | `nextcloud_ping`, `files_search` |
 | Files (WebDAV) | `files_list`, `files_stat`, `files_read`, `files_write`, `files_mkdir`, `files_delete`, `files_move`, `files_copy` |
 | Deck | boards, stacks, cards, labels, assignees, comments (`deck_*`) |
+| Deck watcher | `deck_watch_status`, `deck_watch_poll`, `deck_watch_pending`, `deck_watch_claim`, `deck_watch_complete` |
 | Shares | `shares_list`, `shares_create`, `shares_delete` |
 | Notes app | `notes_list`, `notes_get`, `notes_create`, `notes_update`, `notes_delete` |
 
@@ -97,6 +98,45 @@ npm ci && npm run build
 
 Optional: set `NEXTCLOUD_FILES_ROOT=Projects/Agent` so file tools stay inside one project folder.
 
+## Deck watcher (assign → agent → assign back)
+
+Enable polling for cards assigned to an agent Nextcloud user:
+
+```env
+DECK_WATCH_ENABLED=true
+DECK_WATCH_AGENT_USER=cursor
+DECK_WATCH_OWNER_USER=your-username
+DECK_WATCH_BOARD_IDS=1
+DECK_WATCH_INTERVAL_SEC=60
+DECK_WATCH_DOING_STACK=Doing
+DECK_WATCH_DONE_STACK=Done
+```
+
+**Human loop**
+1. Put the ask in the card title/description (and comments).
+2. Assign the card to `DECK_WATCH_AGENT_USER`.
+3. Watcher queues it (optional `@cursor-ack` comment) and can POST a Cursor Automation webhook.
+4. Agent: `deck_watch_pending` → `deck_watch_claim` → do work → `deck_watch_complete`.
+5. Complete moves to **Done** (if that stack exists), unassigns the agent, assigns `DECK_WATCH_OWNER_USER`.
+
+**Wake Cursor automatically**
+
+Create a [Cursor Automation](https://cursor.com/automations) with a **Webhook** trigger and MCP access to this server. Then set:
+
+```env
+DECK_WATCH_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/YOUR_AUTOMATION_ID
+DECK_WATCH_WEBHOOK_TOKEN=YOUR_WEBHOOK_API_KEY
+```
+
+Prompt the automation roughly: use nextcloud MCP `deck_watch_pending` / `deck_watch_claim` / do the card work / `deck_watch_complete` with a summary.
+
+Debug endpoints (same bearer token as MCP):
+
+- `GET /watch/status`
+- `POST /watch/poll`
+
+State is stored at `DECK_WATCH_STATE_PATH` (Docker volume `/data` by default).
+
 ## Configuration
 
 | Variable | Required | Description |
@@ -104,10 +144,17 @@ Optional: set `NEXTCLOUD_FILES_ROOT=Projects/Agent` so file tools stay inside on
 | `NEXTCLOUD_URL` | yes | Instance URL, no trailing slash |
 | `NEXTCLOUD_USERNAME` | yes | Login name |
 | `NEXTCLOUD_APP_PASSWORD` | yes | App password (not your login password if 2FA is on) |
-| `MCP_AUTH_TOKEN` | HTTP mode | Bearer token for `/mcp` |
+| `MCP_AUTH_TOKEN` | HTTP mode | Bearer token for `/mcp` and `/watch/*` |
 | `PORT` / `HOST` | no | Default `3000` / `0.0.0.0` |
 | `NEXTCLOUD_FILES_ROOT` | no | Subfolder jail for file tools |
 | `NEXTCLOUD_MAX_READ_BYTES` | no | Max `files_read` size (default 1 MiB) |
+| `DECK_WATCH_ENABLED` | no | Enable background Deck assignment watcher |
+| `DECK_WATCH_AGENT_USER` | no | User whose assignments enqueue work (default: `NEXTCLOUD_USERNAME`) |
+| `DECK_WATCH_OWNER_USER` | no | User to assign on complete (default: `NEXTCLOUD_USERNAME`) |
+| `DECK_WATCH_BOARD_IDS` | no | Comma-separated board ids (default: all) |
+| `DECK_WATCH_INTERVAL_SEC` | no | Poll interval (min 15, default 60) |
+| `DECK_WATCH_WEBHOOK_URL` | no | Optional Cursor Automation webhook |
+| `DECK_WATCH_WEBHOOK_TOKEN` | no | Bearer token for that webhook |
 
 ## Development
 
@@ -125,6 +172,7 @@ npm run typecheck
 - Treat `MCP_AUTH_TOKEN` like an API key.
 - This server can read/write anything the Nextcloud user can. Use a limited account and/or `NEXTCLOUD_FILES_ROOT` when collaborating with agents.
 - Binary `files_read` responses are base64; large files are rejected past `NEXTCLOUD_MAX_READ_BYTES`.
+- Prefer a dedicated Nextcloud user for `DECK_WATCH_AGENT_USER` when using the watcher.
 
 ## License
 
