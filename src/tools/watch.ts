@@ -123,7 +123,9 @@ export function registerWatchTools(server: McpServer): void {
         assignOwner: z
           .boolean()
           .optional()
-          .describe("Override DECK_WATCH_COMPLETE_ASSIGN_OWNER"),
+          .describe(
+            "Only applies when DECK_WATCH_COMPLETE_ASSIGN_OWNER=true; cannot force assign when env is false"
+          ),
         targetStackId: z
           .number()
           .int()

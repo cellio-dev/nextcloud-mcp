@@ -15,6 +15,7 @@ export type WatchedCard = {
   claimedAt?: string;
   completedAt?: string;
   lastError?: string;
+  agentRepliedAt?: string;
 };
 
 export type WatchedComment = {
@@ -34,6 +35,7 @@ export type WatchedComment = {
   claimedAt?: string;
   completedAt?: string;
   lastError?: string;
+  agentRepliedAt?: string;
 };
 
 export type WatchState = {
@@ -50,6 +52,8 @@ export type WatchSnapshot = {
   enabled: boolean;
   agentUser: string;
   ownerUser: string;
+  /** Deck-safe @-mention for ownerUser (quoted when uid contains @). */
+  ownerMention: string;
   intervalSec: number;
   autoAck: boolean;
   assignmentTrigger: boolean;
@@ -59,6 +63,8 @@ export type WatchSnapshot = {
   postDoneComment: boolean;
   completeUnassignAgent: boolean;
   completeAssignOwner: boolean;
+  autoMentionReply: boolean;
+  oneReplyPerJob: boolean;
   lastPollAt: string | null;
   lastPollError: string | null;
   pendingCount: number;

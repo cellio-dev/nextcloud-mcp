@@ -23,6 +23,10 @@ export type DeckWatchConfig = {
   completeUnassignAgent: boolean;
   /** On complete, assign the owner user. */
   completeAssignOwner: boolean;
+  /** Prepend @-mention on deck_add_comment when notifyUserId is omitted. */
+  autoMentionReply: boolean;
+  /** Reject a second deck_add_comment before deck_watch_complete (per job). */
+  oneReplyPerJob: boolean;
 };
 
 export type AppConfig = {
@@ -128,6 +132,8 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
       postDoneComment: parseBool("DECK_WATCH_POST_DONE_COMMENT", false),
       completeUnassignAgent: parseBool("DECK_WATCH_COMPLETE_UNASSIGN_AGENT", false),
       completeAssignOwner: parseBool("DECK_WATCH_COMPLETE_ASSIGN_OWNER", false),
+      autoMentionReply: parseBool("DECK_WATCH_AUTO_MENTION_REPLY", true),
+      oneReplyPerJob: parseBool("DECK_WATCH_ONE_REPLY_PER_JOB", true),
     },
   };
 }

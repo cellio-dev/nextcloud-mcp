@@ -137,7 +137,11 @@ DECK_WATCH_WEBHOOK_TOKEN=YOUR_WEBHOOK_API_KEY
 
 Suggested automation prompt:
 
-> On webhook: `deck_watch_pending` → `deck_watch_claim` (no message) → read the `@cursor` comment → do the work → **one** `deck_add_comment` reply → `deck_watch_complete` with no summary. Do not post duplicate “Done” comments. Do not move the card unless asked.
+> On webhook: `deck_watch_pending` → `deck_watch_claim` (no message) → read the `@cursor` comment → do the work → **one** `deck_add_comment` with `notifyUserId` set to the comment **author uid** from the webhook (not display name) → `deck_watch_complete` with no summary and **no** `assignOwner`. Do not post duplicate “Done” comments. Do not move or reassign the card unless asked.
+
+**Email logins:** Nextcloud uids like `you@example.com` must be mentioned as `@"you@example.com"` in raw comment text. With `DECK_WATCH_AUTO_MENTION_REPLY=true` (default), the first `deck_add_comment` on a watched card auto-mentions the comment author’s uid.
+
+**One reply:** With `DECK_WATCH_ONE_REPLY_PER_JOB=true` (default), a second `deck_add_comment` before `deck_watch_complete` is rejected, and status/ack-style messages (“seen your comment…”) are blocked so the automation cannot post a fluff comment plus the real answer.
 
 Debug endpoints (same bearer token as MCP):
 
