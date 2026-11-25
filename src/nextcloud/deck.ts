@@ -262,15 +262,60 @@ export async function createLabel(
   });
 }
 
+type OcsEnvelope<T> = {
+  ocs: {
+    meta: { status: string; statuscode: number; message: string };
+    data: T;
+  };
+};
+
+/**
+ * Deck comments are OCS-only:
+ * /ocs/v2.php/apps/deck/api/v1.0/cards/{id}/comments
+ * (POST to /index.php/apps/deck/api/... returns 405)
+ */
+async function commentsOcs<T>(
+  client: NextcloudClient,
+  cardId: number,
+  options: {
+    method?: string;
+    suffix?: string;
+    body?: unknown;
+    query?: Record<string, string | number | boolean | undefined | null>;
+  } = {}
+): Promise<T> {
+  const suffix = options.suffix ? `/${options.suffix.replace(/^\/+/, "")}` : "";
+  const path = client.ocsPath(
+    `apps/deck/api/v1.0/cards/${cardId}/comments${suffix}`
+  );
+  const envelope = await client.requestJson<OcsEnvelope<T>>(path, {
+    method: options.method,
+    query: options.query,
+    headers: {
+      "OCS-APIRequest": "true",
+      Accept: "application/json",
+      "Content-Type": "application/json;charset=utf-8",
+    },
+    body: options.body === undefined ? null : JSON.stringify(options.body),
+  });
+  if (!envelope?.ocs) {
+    throw new Error("Unexpected Deck comments response (missing ocs envelope)");
+  }
+  if (envelope.ocs.meta && envelope.ocs.meta.statuscode >= 400) {
+    throw new Error(
+      `OCS error ${envelope.ocs.meta.statuscode}: ${envelope.ocs.meta.message}`
+    );
+  }
+  return envelope.ocs.data;
+}
+
 export async function listComments(
   client: NextcloudClient,
   cardId: number,
   limit = 20,
   offset = 0
 ): Promise<unknown> {
-  // Comments live under OCS path in Deck API docs for some versions;
-  // Deck exposes /index.php/apps/deck/api/v1.1/cards/{id}/comments as well.
-  return deckJson(client, `cards/${cardId}/comments`, {
+  return commentsOcs(client, cardId, {
     query: { limit, offset },
   });
 }
@@ -281,7 +326,7 @@ export async function createComment(
   message: string,
   parentId: number | null = null
 ): Promise<unknown> {
-  return deckJson(client, `cards/${cardId}/comments`, {
+  return commentsOcs(client, cardId, {
     method: "POST",
     body: { message, parentId },
   });

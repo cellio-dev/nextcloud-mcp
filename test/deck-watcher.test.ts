@@ -61,7 +61,12 @@ function mockDeckFetch(calls: string[]) {
       return Response.json({ ok: true });
     }
     if (url.includes("/comments") && method === "POST") {
-      return Response.json({ id: 1, message: "ok" });
+      return Response.json({
+        ocs: {
+          meta: { status: "ok", statuscode: 200, message: "OK" },
+          data: { id: 1, message: "ok" },
+        },
+      });
     }
     if (url.includes("/unassignUser") && method === "PUT") {
       return Response.json({ ok: true });

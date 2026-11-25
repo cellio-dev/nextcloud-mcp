@@ -200,7 +200,25 @@ export class DeckWatcher {
               existing.completedAt = undefined;
               existing.claimedAt = undefined;
               existing.webhookSentAt = undefined;
+              existing.lastError = undefined;
               await this.maybeSendWebhook(existing);
+            } else if (
+              watch.autoAck &&
+              existing.status === "pending" &&
+              existing.lastError
+            ) {
+              // Retry ack after transient/API path failures (e.g. old comments 405).
+              try {
+                await deck.createComment(
+                  this.client,
+                  card.id,
+                  `@cursor-ack: queued by nextcloud-mcp watcher (assigned to ${watch.agentUser}).`
+                );
+                existing.lastError = undefined;
+              } catch (error) {
+                existing.lastError =
+                  error instanceof Error ? error.message : String(error);
+              }
             }
           }
         }
