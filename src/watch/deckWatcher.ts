@@ -40,6 +40,10 @@ type DeckComment = {
 const AGENT_REPLY_PREFIX =
   /^@(?:cursor-ack|cursor-done|cursor-update|cursor-blocked)\b/i;
 
+/** Automation sometimes posts these as an extra comment before the real answer. */
+const AGENT_STATUS_COMMENT =
+  /(?:seen your comment|i(?:'|’)ll work|working on it|queued|claimed\.?\s*working)/i;
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -143,6 +147,8 @@ export class DeckWatcher {
       postDoneComment: w.postDoneComment,
       completeUnassignAgent: w.completeUnassignAgent,
       completeAssignOwner: w.completeAssignOwner,
+      autoMentionReply: w.autoMentionReply,
+      oneReplyPerJob: w.oneReplyPerJob,
       lastPollAt: this.lastPollAt,
       lastPollError: this.lastPollError,
       pendingCount: cards.filter((c) => c.status === "pending").length,
@@ -514,7 +520,7 @@ export class DeckWatcher {
         `authorMention=${formatDeckUserMention(comment.author)}`,
         `ownerMention=${formatDeckUserMention(ownerUser)}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        "Steps: deck_watch_claim (silent) → read the ask below → one deck_add_comment reply (use notifyUserId=author uid for @ notifications, not display name) → deck_watch_complete without assignOwner.",
+        "Steps: deck_watch_claim (no message) → exactly ONE deck_add_comment with the answer (no separate ack/status comment) → deck_watch_complete. notifyUserId is optional; server auto-mentions author when DECK_WATCH_AUTO_MENTION_REPLY=true.",
         `User comment:\n${comment.message}`,
       ].join("\n"),
       source: "nextcloud-mcp-deck-watch",
@@ -666,6 +672,75 @@ export class DeckWatcher {
     card.stackTitle = target.title ?? card.stackTitle;
     card.updatedAt = nowIso();
     return target.id;
+  }
+
+  /** User to @-mention on the agent's reply for this card (comment author or owner). */
+  notifyUserIdForCard(cardId: number): string | undefined {
+    const w = this.config.deckWatch;
+    const openComments = Object.values(this.state.comments)
+      .filter(
+        (c) =>
+          c.cardId === cardId &&
+          (c.status === "pending" || c.status === "claimed")
+      )
+      .sort((a, b) => b.commentId - a.commentId);
+    if (openComments[0]?.author) {
+      return openComments[0].author;
+    }
+    const card = this.state.cards[String(cardId)];
+    if (card && (card.status === "pending" || card.status === "claimed")) {
+      return w.ownerUser;
+    }
+    return undefined;
+  }
+
+  validateAgentComment(cardId: number, message: string): void {
+    const w = this.config.deckWatch;
+    const text = message.trim();
+    if (AGENT_REPLY_PREFIX.test(text) || AGENT_STATUS_COMMENT.test(text)) {
+      throw new Error(
+        "Do not post watcher-style ack/status comments. Send one deck_add_comment with only the answer, then deck_watch_complete."
+      );
+    }
+    if (!w.oneReplyPerJob) return;
+    const cardKey = String(cardId);
+    const card = this.state.cards[cardKey];
+    if (card?.agentRepliedAt) {
+      throw new Error(
+        `Card ${cardId} already has an agent reply for this job. Call deck_watch_complete instead of posting another comment.`
+      );
+    }
+    for (const comment of Object.values(this.state.comments)) {
+      if (
+        comment.cardId === cardId &&
+        (comment.status === "pending" || comment.status === "claimed") &&
+        comment.agentRepliedAt
+      ) {
+        throw new Error(
+          `Card ${cardId} already has an agent reply for this job. Call deck_watch_complete instead of posting another comment.`
+        );
+      }
+    }
+  }
+
+  async recordAgentReply(cardId: number): Promise<void> {
+    const at = nowIso();
+    const cardKey = String(cardId);
+    const card = this.state.cards[cardKey];
+    if (card) {
+      card.agentRepliedAt = at;
+      card.updatedAt = at;
+    }
+    for (const comment of Object.values(this.state.comments)) {
+      if (
+        comment.cardId === cardId &&
+        (comment.status === "pending" || comment.status === "claimed")
+      ) {
+        comment.agentRepliedAt = at;
+        comment.updatedAt = at;
+      }
+    }
+    await saveWatchState(this.config.deckWatch.statePath, this.state);
   }
 
   private requireCard(cardId: number): WatchedCard {

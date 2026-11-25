@@ -4,12 +4,15 @@ import type { NextcloudClient } from "../nextcloud/client.js";
 import { errorResult, textResult } from "../nextcloud/client.js";
 import * as deck from "../nextcloud/deck.js";
 import { formatDeckUserMention } from "../nextcloud/mentions.js";
+import type { DeckWatchConfig } from "../config.js";
+import { getSharedWatcher } from "../watch/deckWatcher.js";
 
 const id = z.number().int().positive();
 
 export function registerDeckTools(
   server: McpServer,
-  client: NextcloudClient
+  client: NextcloudClient,
+  deckWatch: DeckWatchConfig
 ): void {
   server.registerTool(
     "deck_list_boards",
@@ -450,23 +453,31 @@ export function registerDeckTools(
           .string()
           .optional()
           .describe(
-            "Nextcloud uid to @-mention at the start (e.g. comment author). Do not use display names."
+            "Nextcloud uid to @-mention (optional; auto-filled from watcher when DECK_WATCH_AUTO_MENTION_REPLY=true)."
           ),
       },
     },
     async ({ cardId, message, parentId, notifyUserId }) => {
       try {
+        const watcher = getSharedWatcher();
+        watcher?.validateAgentComment(cardId, message);
+
         let text = message;
-        const uid = notifyUserId?.trim();
+        let uid = notifyUserId?.trim();
+        if (!uid && deckWatch.autoMentionReply && watcher) {
+          uid = watcher.notifyUserIdForCard(cardId);
+        }
         if (uid) {
           const mention = formatDeckUserMention(uid);
           if (!text.includes(mention)) {
             text = `${mention} ${text}`;
           }
         }
-        return textResult(
-          await deck.createComment(client, cardId, text, parentId)
-        );
+        const result = await deck.createComment(client, cardId, text, parentId);
+        if (watcher) {
+          await watcher.recordAgentReply(cardId);
+        }
+        return textResult(result);
       } catch (error) {
         return errorResult(error);
       }

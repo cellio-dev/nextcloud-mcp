@@ -9,7 +9,7 @@ import { registerSystemTools } from "./tools/system.js";
 import { registerWatchTools } from "./tools/watch.js";
 
 export const SERVER_NAME = "nextcloud-mcp";
-export const SERVER_VERSION = "1.3.1";
+export const SERVER_VERSION = "1.3.2";
 
 export function createMcpServer(config: AppConfig): McpServer {
   const client = new NextcloudClient(config);
@@ -20,7 +20,7 @@ export function createMcpServer(config: AppConfig): McpServer {
 
   registerSystemTools(server, client);
   registerFileTools(server, client);
-  registerDeckTools(server, client);
+  registerDeckTools(server, client, config.deckWatch);
   registerShareTools(server, client);
   registerNotesTools(server, client);
   registerWatchTools(server);
