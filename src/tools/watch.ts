@@ -77,6 +77,23 @@ export function registerWatchTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "deck_watch_retry_webhooks",
+    {
+      description:
+        "Resend Cursor Automation webhooks for queued comments that never fired (diagnostic).",
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const watcher = requireWatcher();
+        return textResult(await watcher.retryPendingWebhooks());
+      } catch (error) {
+        return errorResult(error);
+      }
+    }
+  );
+
+  server.registerTool(
     "deck_watch_reset_card",
     {
       description:

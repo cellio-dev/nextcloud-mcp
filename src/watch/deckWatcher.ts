@@ -31,7 +31,7 @@ type DeckStack = {
 };
 type DeckBoard = { id?: number; title?: string };
 type DeckComment = {
-  id?: number;
+  id?: number | string;
   message?: string;
   actorId?: string;
   creationDateTime?: string;
@@ -61,7 +61,45 @@ function asBoards(value: unknown): DeckBoard[] {
 }
 
 function asComments(value: unknown): DeckComment[] {
-  return Array.isArray(value) ? (value as DeckComment[]) : [];
+  if (Array.isArray(value)) return value as DeckComment[];
+  if (value && typeof value === "object") {
+    const nested = (value as { comments?: unknown }).comments;
+    if (Array.isArray(nested)) return nested as DeckComment[];
+  }
+  return [];
+}
+
+function toEntityId(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return Number.parseInt(value.trim(), 10);
+  }
+  return undefined;
+}
+
+function plainCommentText(message: string): string {
+  return message
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function messageTriggersAgent(
+  message: string,
+  mention: RegExp,
+  agentUser: string,
+  mentionToken: string
+): boolean {
+  const text = plainCommentText(message);
+  if (!text) return false;
+  if (mention.test(text)) return true;
+  const bare = (mentionToken.trim() || "@cursor").replace(/^@/, "");
+  if (new RegExp(`@${bare}\\b`, "i").test(text)) return true;
+  const agent = agentUser.toLowerCase();
+  const lower = text.toLowerCase();
+  if (lower.includes(`mention:user:${agent}`)) return true;
+  if (lower.includes(`mention:user:${bare.toLowerCase()}`)) return true;
+  return false;
 }
 
 function cardAssignedTo(card: DeckCard, userId: string): boolean {
@@ -93,6 +131,7 @@ export class DeckWatcher {
   };
   private lastPollAt: string | null = null;
   private lastPollError: string | null = null;
+  private lastWebhookError: string | null = null;
 
   constructor(config: AppConfig, client?: NextcloudClient) {
     this.config = config;
@@ -110,6 +149,11 @@ export class DeckWatcher {
     console.log(
       `[deck-watch] enabled; agent=${this.config.deckWatch.agentUser} owner=${this.config.deckWatch.ownerUser} comments=${this.config.deckWatch.commentTrigger} mention=${this.config.deckWatch.commentMention} interval=${this.config.deckWatch.intervalSec}s`
     );
+    if (!this.config.deckWatch.webhookUrl) {
+      console.warn(
+        "[deck-watch] DECK_WATCH_WEBHOOK_URL is empty — @cursor comments queue locally but Cursor Automations will not run."
+      );
+    }
     await this.pollOnce();
     this.timer = setInterval(() => {
       void this.pollOnce();
@@ -152,6 +196,8 @@ export class DeckWatcher {
       requireReplyBeforeComplete: w.requireReplyBeforeComplete,
       lastPollAt: this.lastPollAt,
       lastPollError: this.lastPollError,
+      lastWebhookError: this.lastWebhookError,
+      webhookConfigured: Boolean(w.webhookUrl),
       pendingCount: cards.filter((c) => c.status === "pending").length,
       claimedCount: cards.filter((c) => c.status === "claimed").length,
       pendingCommentCount: comments.filter((c) => c.status === "pending").length,
@@ -222,7 +268,9 @@ export class DeckWatcher {
       for (const stack of stacks) {
         if (typeof stack.id !== "number") continue;
         for (const card of asCards(stack.cards)) {
-          if (typeof card.id !== "number") continue;
+          const numericCardId = toEntityId(card.id);
+          if (numericCardId === undefined) continue;
+          card.id = numericCardId;
           if (card.archived || (card.deletedAt ?? 0) > 0) continue;
 
           const assigned = cardAssignedTo(card, watch.agentUser);
@@ -350,7 +398,11 @@ export class DeckWatcher {
 
     let comments: DeckComment[] = [];
     try {
-      comments = asComments(await deck.listComments(this.client, card.id, 30, 0));
+      comments = asComments(
+        await deck.listComments(this.client, card.id, 100, 0)
+      ).sort(
+        (a, b) => (toEntityId(b.id) ?? 0) - (toEntityId(a.id) ?? 0)
+      );
     } catch (error) {
       console.error(
         `[deck-watch] list comments failed card=${card.id}:`,
@@ -362,8 +414,9 @@ export class DeckWatcher {
     this.state.cardLastModified[key] = Math.max(lastModified, prev);
 
     for (const comment of comments) {
-      if (typeof comment.id !== "number" || !comment.message) continue;
-      const commentKey = String(comment.id);
+      const commentId = toEntityId(comment.id);
+      if (commentId === undefined || !comment.message) continue;
+      const commentKey = String(commentId);
       if (this.state.processedCommentIds[commentKey]) continue;
 
       const existingWatched = this.state.comments[commentKey];
@@ -394,7 +447,14 @@ export class DeckWatcher {
         this.state.processedCommentIds[commentKey] = true;
         continue;
       }
-      if (!mention.test(comment.message)) {
+      if (
+        !messageTriggersAgent(
+          comment.message,
+          mention,
+          watch.agentUser,
+          watch.commentMention
+        )
+      ) {
         continue;
       }
 
@@ -411,7 +471,7 @@ export class DeckWatcher {
       }
 
       const watched: WatchedComment = {
-        commentId: comment.id,
+        commentId,
         cardId: card.id,
         boardId,
         stackId: stack.id,
@@ -528,10 +588,45 @@ export class DeckWatcher {
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(
+      const err = new Error(
         `Webhook failed (${response.status}): ${text.slice(0, 500)}`
       );
+      this.lastWebhookError = err.message;
+      throw err;
     }
+    this.lastWebhookError = null;
+  }
+
+  async retryPendingWebhooks(): Promise<{ attempted: number; sent: number }> {
+    let attempted = 0;
+    let sent = 0;
+    if (!this.config.deckWatch.webhookUrl) {
+      throw new Error(
+        "DECK_WATCH_WEBHOOK_URL is not set; cannot notify Cursor Automations."
+      );
+    }
+    for (const watched of Object.values(this.state.comments)) {
+      if (
+        watched.status !== "pending" &&
+        watched.status !== "claimed"
+      ) {
+        continue;
+      }
+      if (watched.webhookSentAt) continue;
+      attempted += 1;
+      try {
+        if (watched.commentId) {
+          await this.maybeSendCommentWebhook(watched);
+        }
+        sent += 1;
+        this.state.processedCommentIds[String(watched.commentId)] = true;
+      } catch (error) {
+        watched.lastError =
+          error instanceof Error ? error.message : String(error);
+      }
+    }
+    await saveWatchState(this.config.deckWatch.statePath, this.state);
+    return { attempted, sent };
   }
 
   private async maybeSendCardWebhook(card: WatchedCard): Promise<void> {

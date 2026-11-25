@@ -76,6 +76,22 @@ async function startHttp(): Promise<void> {
   });
 
   app.post(
+    "/watch/retry-webhooks",
+    createBearerAuth(config.mcpAuthToken),
+    async (_req, res) => {
+      const watcher = getSharedWatcher();
+      if (!watcher) {
+        res.status(404).json({
+          error: "watcher_disabled",
+          message: "Set DECK_WATCH_ENABLED=true to enable the Deck watcher.",
+        });
+        return;
+      }
+      res.json(await watcher.retryPendingWebhooks());
+    }
+  );
+
+  app.post(
     "/watch/poll",
     createBearerAuth(config.mcpAuthToken),
     async (_req, res) => {
