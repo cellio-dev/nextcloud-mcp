@@ -3,7 +3,7 @@
 set -u
 
 HOST="${MCP_HOST:-127.0.0.1}"
-PORT="${MCP_PORT:-3005}"
+PORT="${MCP_HTTP_PORT:-${MCP_PORT:-3005}}"
 TOKEN="${MCP_AUTH_TOKEN:-}"
 
 BASE="http://${HOST}:${PORT}"
