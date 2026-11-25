@@ -51,8 +51,14 @@ export type WatchSnapshot = {
   agentUser: string;
   ownerUser: string;
   intervalSec: number;
+  autoAck: boolean;
+  assignmentTrigger: boolean;
   commentTrigger: boolean;
   commentMention: string;
+  silentClaim: boolean;
+  postDoneComment: boolean;
+  completeUnassignAgent: boolean;
+  completeAssignOwner: boolean;
   lastPollAt: string | null;
   lastPollError: string | null;
   pendingCount: number;

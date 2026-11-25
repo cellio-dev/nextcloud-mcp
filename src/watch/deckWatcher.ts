@@ -127,13 +127,20 @@ export class DeckWatcher {
     const comments = Object.values(this.state.comments).sort((a, b) =>
       a.firstSeenAt.localeCompare(b.firstSeenAt)
     );
+    const w = this.config.deckWatch;
     return {
       enabled: this.enabled,
-      agentUser: this.config.deckWatch.agentUser,
-      ownerUser: this.config.deckWatch.ownerUser,
-      intervalSec: this.config.deckWatch.intervalSec,
-      commentTrigger: this.config.deckWatch.commentTrigger,
-      commentMention: this.config.deckWatch.commentMention,
+      agentUser: w.agentUser,
+      ownerUser: w.ownerUser,
+      intervalSec: w.intervalSec,
+      autoAck: w.autoAck,
+      assignmentTrigger: w.assignmentTrigger,
+      commentTrigger: w.commentTrigger,
+      commentMention: w.commentMention,
+      silentClaim: w.silentClaim,
+      postDoneComment: w.postDoneComment,
+      completeUnassignAgent: w.completeUnassignAgent,
+      completeAssignOwner: w.completeAssignOwner,
       lastPollAt: this.lastPollAt,
       lastPollError: this.lastPollError,
       pendingCount: cards.filter((c) => c.status === "pending").length,
@@ -210,7 +217,7 @@ export class DeckWatcher {
           if (card.archived || (card.deletedAt ?? 0) > 0) continue;
 
           const assigned = cardAssignedTo(card, watch.agentUser);
-          if (assigned) {
+          if (assigned && watch.assignmentTrigger) {
             assignedSeen.add(String(card.id));
             await this.upsertAssignedCard(board.id, stack, card);
           }
@@ -475,8 +482,8 @@ export class DeckWatcher {
         `cardId=${card.cardId} boardId=${card.boardId} stackId=${card.stackId}`,
         `title=${card.title}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        `Use nextcloud MCP: deck_watch_pending → deck_watch_claim → do the work → reply with deck_add_comment → deck_watch_complete.`,
-        `Do not move the card unless the user asked. Look for ${commentMention} comments for instructions.`,
+        `Use nextcloud MCP: deck_watch_pending → deck_watch_claim (silent) → one deck_add_comment → deck_watch_complete.`,
+        `Do not move the card unless the user asked. Prefer a single user-facing reply comment.`,
         card.description ? `description:\n${card.description}` : "",
       ]
         .filter(Boolean)
@@ -503,7 +510,7 @@ export class DeckWatcher {
         `cardTitle=${comment.cardTitle}`,
         `author=${comment.author}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        "Steps: deck_watch_claim → read the ask below → do the work → deck_add_comment with result → deck_watch_complete.",
+        "Steps: deck_watch_claim (silent) → read the ask below → one deck_add_comment reply → deck_watch_complete (summary optional, no extra @cursor-done if postDoneComment is false).",
         `User comment:\n${comment.message}`,
       ].join("\n"),
       source: "nextcloud-mcp-deck-watch",
@@ -524,13 +531,17 @@ export class DeckWatcher {
   ): Promise<{ card: WatchedCard; movedToStackId?: number }> {
     const card = this.requireCard(cardId);
     const movedToStackId = await this.maybeMoveCard(card, options.targetStackId);
-
-    await deck.createComment(
-      this.client,
-      card.cardId,
-      message?.trim() ||
-        `@cursor-ack: claimed. Working now as ${this.config.deckWatch.agentUser}.`
-    );
+    const watch = this.config.deckWatch;
+    const text = message?.trim();
+    if (text) {
+      await deck.createComment(this.client, card.cardId, text);
+    } else if (!watch.silentClaim) {
+      await deck.createComment(
+        this.client,
+        card.cardId,
+        `@cursor-ack: claimed. Working now as ${watch.agentUser}.`
+      );
+    }
 
     card.status = "claimed";
     card.claimedAt = nowIso();
@@ -551,7 +562,7 @@ export class DeckWatcher {
 
   async complete(
     cardId: number,
-    summary: string,
+    summary = "",
     options: { assignOwner?: boolean; targetStackId?: number } = {}
   ): Promise<{
     card: WatchedCard;
@@ -559,28 +570,34 @@ export class DeckWatcher {
     movedToStackId?: number;
   }> {
     const card = this.requireCard(cardId);
-    const assignOwner = options.assignOwner ?? true;
     const watch = this.config.deckWatch;
+    const assignOwner = options.assignOwner ?? watch.completeAssignOwner;
     const movedToStackId = await this.maybeMoveCard(card, options.targetStackId);
 
-    await deck.createComment(
-      this.client,
-      card.cardId,
-      `@cursor-done: ${summary}`
-    );
-
-    try {
-      await deck.unassignUser(
+    const doneText = summary.trim();
+    if (watch.postDoneComment && doneText) {
+      await deck.createComment(
         this.client,
-        card.boardId,
-        card.stackId,
         card.cardId,
-        watch.agentUser
+        doneText.startsWith("@cursor-done:")
+          ? doneText
+          : `@cursor-done: ${doneText}`
       );
-    } catch (error) {
-      // Fine if it wasn't assigned.
-      card.lastError =
-        error instanceof Error ? error.message : String(error);
+    }
+
+    if (watch.completeUnassignAgent) {
+      try {
+        await deck.unassignUser(
+          this.client,
+          card.boardId,
+          card.stackId,
+          card.cardId,
+          watch.agentUser
+        );
+      } catch (error) {
+        card.lastError =
+          error instanceof Error ? error.message : String(error);
+      }
     }
 
     let assignedTo: string | undefined;

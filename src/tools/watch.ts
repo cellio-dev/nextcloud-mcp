@@ -80,10 +80,13 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_claim",
     {
       description:
-        "Claim a watched card (from assignment or @cursor comment), post an ack. Does not move unless targetStackId is set.",
+        "Claim a watched card. When DECK_WATCH_SILENT_CLAIM=true (default), posts no comment unless message is set.",
       inputSchema: {
         cardId: z.number().int().positive(),
-        message: z.string().optional(),
+        message: z
+          .string()
+          .optional()
+          .describe("Optional claim comment; omit for silent claim"),
         targetStackId: z
           .number()
           .int()
@@ -108,14 +111,19 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_complete",
     {
       description:
-        "Finish watched work: post @cursor-done, unassign agent if assigned, assign owner back. Does not move unless targetStackId is set.",
+        "Mark watched work complete and clear queue state. Posts @cursor-done only when DECK_WATCH_POST_DONE_COMMENT=true. Assign handoff follows DECK_WATCH_COMPLETE_* env unless overridden.",
       inputSchema: {
         cardId: z.number().int().positive(),
         summary: z
           .string()
-          .min(1)
-          .describe("What was done; posted as an @cursor-done comment"),
-        assignOwner: z.boolean().default(true),
+          .optional()
+          .describe(
+            "Optional; used only when DECK_WATCH_POST_DONE_COMMENT=true"
+          ),
+        assignOwner: z
+          .boolean()
+          .optional()
+          .describe("Override DECK_WATCH_COMPLETE_ASSIGN_OWNER"),
         targetStackId: z
           .number()
           .int()
@@ -128,7 +136,7 @@ export function registerWatchTools(server: McpServer): void {
       try {
         const watcher = requireWatcher();
         return textResult(
-          await watcher.complete(cardId, summary, {
+          await watcher.complete(cardId, summary ?? "", {
             assignOwner,
             targetStackId,
           })

@@ -98,9 +98,11 @@ npm ci && npm run build
 
 Optional: set `NEXTCLOUD_FILES_ROOT=Projects/Agent` so file tools stay inside one project folder.
 
-## Deck watcher (assign **or** `@cursor` comments)
+## Deck watcher — talk via `@cursor` comments (quiet mode)
 
 Works on **any board / any card**. No special stack layout. Cards stay put unless you ask to move them.
+
+**Recommended `.env`** (copy from `.env.example`):
 
 ```env
 DECK_WATCH_ENABLED=true
@@ -108,16 +110,21 @@ DECK_WATCH_AGENT_USER=cursor
 DECK_WATCH_OWNER_USER=your-username
 DECK_WATCH_COMMENT_TRIGGER=true
 DECK_WATCH_COMMENT_MENTION=@cursor
+DECK_WATCH_ASSIGNMENT_TRIGGER=false
+DECK_WATCH_AUTO_ACK=false
+DECK_WATCH_SILENT_CLAIM=true
+DECK_WATCH_POST_DONE_COMMENT=false
+DECK_WATCH_COMPLETE_UNASSIGN_AGENT=false
+DECK_WATCH_COMPLETE_ASSIGN_OWNER=false
 DECK_WATCH_INTERVAL_SEC=60
 ```
 
 ### Talk to Cursor in comments
-1. On any card, comment e.g. `@cursor please add a test reply`.
-2. Watcher posts `@cursor-ack: seen…` and queues the comment.
-3. With a Cursor Automation webhook configured, Cursor wakes, does the work, and replies on the same card via `deck_add_comment`.
-4. `deck_watch_complete` posts `@cursor-done: …` (optional reassignment to you).
+1. Comment `@cursor …` on any card.
+2. Watcher queues the request (no extra ack comments when `DECK_WATCH_AUTO_ACK=false`).
+3. With a Cursor Automation webhook, the agent replies **once** via `deck_add_comment`, then `deck_watch_complete` (silent by default).
 
-You can still **assign** the card to `cursor` as an alternate enqueue signal.
+Optional: `DECK_WATCH_ASSIGNMENT_TRIGGER=true` to also enqueue when the card is assigned to `cursor`, and enable complete handoff with `DECK_WATCH_COMPLETE_*`.
 
 ### Wake Cursor automatically (required for hands-off replies)
 
@@ -130,7 +137,7 @@ DECK_WATCH_WEBHOOK_TOKEN=YOUR_WEBHOOK_API_KEY
 
 Suggested automation prompt:
 
-> When triggered from nextcloud-mcp, call `deck_watch_pending`, `deck_watch_claim` on the card, read the latest `@cursor` comment, do what it asks using Nextcloud MCP tools, reply with `deck_add_comment`, then `deck_watch_complete`. Do not move the card unless the user asked.
+> On webhook: `deck_watch_pending` → `deck_watch_claim` (no message) → read the `@cursor` comment → do the work → **one** `deck_add_comment` reply → `deck_watch_complete` with no summary. Do not post duplicate “Done” comments. Do not move the card unless asked.
 
 Debug endpoints (same bearer token as MCP):
 
@@ -150,15 +157,21 @@ State is stored at `DECK_WATCH_STATE_PATH` (Docker volume `/data` by default).
 | `PORT` / `HOST` | no | Default `3000` / `0.0.0.0` |
 | `NEXTCLOUD_FILES_ROOT` | no | Subfolder jail for file tools |
 | `NEXTCLOUD_MAX_READ_BYTES` | no | Max `files_read` size (default 1 MiB) |
-| `DECK_WATCH_ENABLED` | no | Enable background Deck assignment watcher |
-| `DECK_WATCH_AGENT_USER` | no | User whose assignments enqueue work (default: `NEXTCLOUD_USERNAME`) |
-| `DECK_WATCH_OWNER_USER` | no | User to assign on complete (default: `NEXTCLOUD_USERNAME`) |
+| `DECK_WATCH_ENABLED` | no | Enable background Deck watcher |
+| `DECK_WATCH_AGENT_USER` | no | Agent Nextcloud user (default: `NEXTCLOUD_USERNAME`) |
+| `DECK_WATCH_OWNER_USER` | no | Human user for optional assign-back |
 | `DECK_WATCH_BOARD_IDS` | no | Comma-separated board ids (default: all) |
 | `DECK_WATCH_INTERVAL_SEC` | no | Poll interval (min 15, default 60) |
-| `DECK_WATCH_WEBHOOK_URL` | no | Optional Cursor Automation webhook |
-| `DECK_WATCH_WEBHOOK_TOKEN` | no | Bearer token for that webhook |
-| `DECK_WATCH_COMMENT_TRIGGER` | no | Watch for mention comments (default true) |
+| `DECK_WATCH_COMMENT_TRIGGER` | no | `@cursor` comments enqueue work (default `true`) |
 | `DECK_WATCH_COMMENT_MENTION` | no | Mention token (default `@cursor`) |
+| `DECK_WATCH_ASSIGNMENT_TRIGGER` | no | Assign-to-agent also enqueues (default `false`) |
+| `DECK_WATCH_AUTO_ACK` | no | Watcher posts seen/queued acks (default `false`) |
+| `DECK_WATCH_SILENT_CLAIM` | no | `deck_watch_claim` posts no comment (default `true`) |
+| `DECK_WATCH_POST_DONE_COMMENT` | no | `deck_watch_complete` posts `@cursor-done` (default `false`) |
+| `DECK_WATCH_COMPLETE_UNASSIGN_AGENT` | no | Unassign agent on complete (default `false`) |
+| `DECK_WATCH_COMPLETE_ASSIGN_OWNER` | no | Assign owner on complete (default `false`) |
+| `DECK_WATCH_WEBHOOK_URL` | no | Cursor Automation webhook URL |
+| `DECK_WATCH_WEBHOOK_TOKEN` | no | Webhook bearer token (raw, no `Bearer `) |
 
 ## Development
 
