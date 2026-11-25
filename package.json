@@ -1,6 +1,6 @@
 {
   "name": "nextcloud-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Docker-deployable MCP server for collaborating with AI agents via Nextcloud Files, Deck, Shares, Notes, and Search",
   "type": "module",
   "main": "dist/index.js",

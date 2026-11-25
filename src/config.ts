@@ -7,8 +7,6 @@ export type DeckWatchConfig = {
   statePath: string;
   webhookUrl: string;
   webhookToken: string;
-  doingStackTitle: string;
-  doneStackTitle: string;
   autoAck: boolean;
 };
 
@@ -107,8 +105,6 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
       ),
       webhookUrl: optional("DECK_WATCH_WEBHOOK_URL", ""),
       webhookToken: optional("DECK_WATCH_WEBHOOK_TOKEN", ""),
-      doingStackTitle: optional("DECK_WATCH_DOING_STACK", "Doing"),
-      doneStackTitle: optional("DECK_WATCH_DONE_STACK", "Done"),
       autoAck: parseBool("DECK_WATCH_AUTO_ACK", true),
     },
   };

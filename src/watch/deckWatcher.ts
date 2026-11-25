@@ -46,16 +46,6 @@ function cardAssignedTo(card: DeckCard, userId: string): boolean {
   });
 }
 
-function findStackIdByTitle(
-  stacks: DeckStack[],
-  title: string
-): number | undefined {
-  const needle = title.trim().toLowerCase();
-  if (!needle) return undefined;
-  const match = stacks.find((s) => (s.title ?? "").trim().toLowerCase() === needle);
-  return typeof match?.id === "number" ? match.id : undefined;
-}
-
 export class DeckWatcher {
   private readonly config: AppConfig;
   private readonly client: NextcloudClient;
@@ -246,7 +236,7 @@ export class DeckWatcher {
         `cardId=${card.cardId} boardId=${card.boardId} stackId=${card.stackId}`,
         `title=${card.title}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        "Steps: deck_watch_pending → deck_watch_claim → do the work → deck_watch_complete (assigns back to owner).",
+        "Steps: deck_watch_pending → deck_watch_claim → do the work → deck_watch_complete (assigns back to owner). Do not move the card unless the user asked.",
         card.description ? `description:\n${card.description}` : "",
       ]
         .filter(Boolean)
@@ -281,27 +271,12 @@ export class DeckWatcher {
 
   async claim(
     cardId: number,
-    message?: string
+    message?: string,
+    options: { targetStackId?: number } = {}
   ): Promise<{ card: WatchedCard; movedToStackId?: number }> {
     const card = this.requireCard(cardId);
-    const stacks = asStacks(await deck.listStacks(this.client, card.boardId));
-    const doingId = findStackIdByTitle(
-      stacks,
-      this.config.deckWatch.doingStackTitle
-    );
-
-    if (doingId && doingId !== card.stackId) {
-      await deck.reorderCard(
-        this.client,
-        card.boardId,
-        card.stackId,
-        card.cardId,
-        0,
-        doingId
-      );
-      card.stackId = doingId;
-      card.stackTitle = this.config.deckWatch.doingStackTitle;
-    }
+    // Never auto-move. Only relocate when the caller explicitly passes targetStackId.
+    const movedToStackId = await this.maybeMoveCard(card, options.targetStackId);
 
     await deck.createComment(
       this.client,
@@ -314,37 +289,20 @@ export class DeckWatcher {
     card.claimedAt = nowIso();
     card.updatedAt = nowIso();
     await saveWatchState(this.config.deckWatch.statePath, this.state);
-    return { card, movedToStackId: doingId };
+    return { card, movedToStackId };
   }
 
   async complete(
     cardId: number,
     summary: string,
-    options: { assignOwner?: boolean; moveToDone?: boolean } = {}
+    options: { assignOwner?: boolean; targetStackId?: number } = {}
   ): Promise<{ card: WatchedCard; assignedTo?: string; movedToStackId?: number }> {
     const card = this.requireCard(cardId);
     const assignOwner = options.assignOwner ?? true;
-    const moveToDone = options.moveToDone ?? true;
     const watch = this.config.deckWatch;
 
-    let movedToStackId: number | undefined;
-    if (moveToDone) {
-      const stacks = asStacks(await deck.listStacks(this.client, card.boardId));
-      const doneId = findStackIdByTitle(stacks, watch.doneStackTitle);
-      if (doneId && doneId !== card.stackId) {
-        await deck.reorderCard(
-          this.client,
-          card.boardId,
-          card.stackId,
-          card.cardId,
-          0,
-          doneId
-        );
-        card.stackId = doneId;
-        card.stackTitle = watch.doneStackTitle;
-        movedToStackId = doneId;
-      }
-    }
+    // Stay on the current stack/board unless targetStackId is explicitly provided.
+    const movedToStackId = await this.maybeMoveCard(card, options.targetStackId);
 
     await deck.createComment(
       this.client,
@@ -388,6 +346,34 @@ export class DeckWatcher {
     card.updatedAt = nowIso();
     await saveWatchState(this.config.deckWatch.statePath, this.state);
     return { card, assignedTo, movedToStackId };
+  }
+
+  private async maybeMoveCard(
+    card: WatchedCard,
+    targetStackId?: number
+  ): Promise<number | undefined> {
+    if (!targetStackId || targetStackId === card.stackId) {
+      return undefined;
+    }
+    const stacks = asStacks(await deck.listStacks(this.client, card.boardId));
+    const target = stacks.find((s) => s.id === targetStackId);
+    if (!target || typeof target.id !== "number") {
+      throw new Error(
+        `Stack ${targetStackId} was not found on board ${card.boardId}.`
+      );
+    }
+    await deck.reorderCard(
+      this.client,
+      card.boardId,
+      card.stackId,
+      card.cardId,
+      0,
+      target.id
+    );
+    card.stackId = target.id;
+    card.stackTitle = target.title ?? card.stackTitle;
+    card.updatedAt = nowIso();
+    return target.id;
   }
 
   private requireCard(cardId: number): WatchedCard {

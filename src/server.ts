@@ -9,7 +9,7 @@ import { registerSystemTools } from "./tools/system.js";
 import { registerWatchTools } from "./tools/watch.js";
 
 export const SERVER_NAME = "nextcloud-mcp";
-export const SERVER_VERSION = "1.1.0";
+export const SERVER_VERSION = "1.1.1";
 
 export function createMcpServer(config: AppConfig): McpServer {
   const client = new NextcloudClient(config);
@@ -49,7 +49,7 @@ Deck watcher: ${watch.enabled ? `on (agent=${watch.agentUser}, owner=${watch.own
 1. Call \`nextcloud_ping\` to verify access.
 2. Use \`files_*\` tools for project docs, specs, and artifacts.
 3. Use \`deck_*\` tools for task boards, cards, and comments.
-4. With watcher enabled: assign a card to \`${watch.agentUser}\` → agent uses \`deck_watch_pending\` / \`deck_watch_claim\` / \`deck_watch_complete\` (assigns back to \`${watch.ownerUser}\`).
+4. With watcher enabled: assign any card on any board to \`${watch.agentUser}\` → agent uses \`deck_watch_pending\` / \`deck_watch_claim\` / \`deck_watch_complete\` (assigns back to \`${watch.ownerUser}\`; does not move the card unless asked).
 5. Use \`notes_*\` for lightweight scratchpads (Notes app required).
 6. Use \`shares_*\` when you need to share a path with a teammate or via public link.
 `,

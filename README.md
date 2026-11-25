@@ -100,24 +100,23 @@ Optional: set `NEXTCLOUD_FILES_ROOT=Projects/Agent` so file tools stay inside on
 
 ## Deck watcher (assign → agent → assign back)
 
-Enable polling for cards assigned to an agent Nextcloud user:
+Works on **any board / any card**. No Inbox/Doing/Done layout required. Cards stay where they are unless you explicitly ask to move them.
 
 ```env
 DECK_WATCH_ENABLED=true
 DECK_WATCH_AGENT_USER=cursor
 DECK_WATCH_OWNER_USER=your-username
-DECK_WATCH_BOARD_IDS=1
+# Optional: limit to specific boards. Empty = all boards the agent can see.
+# DECK_WATCH_BOARD_IDS=
 DECK_WATCH_INTERVAL_SEC=60
-DECK_WATCH_DOING_STACK=Doing
-DECK_WATCH_DONE_STACK=Done
 ```
 
 **Human loop**
-1. Put the ask in the card title/description (and comments).
+1. Put the ask in the card title/description (and comments) on any board.
 2. Assign the card to `DECK_WATCH_AGENT_USER`.
 3. Watcher queues it (optional `@cursor-ack` comment) and can POST a Cursor Automation webhook.
 4. Agent: `deck_watch_pending` → `deck_watch_claim` → do work → `deck_watch_complete`.
-5. Complete moves to **Done** (if that stack exists), unassigns the agent, assigns `DECK_WATCH_OWNER_USER`.
+5. Complete posts a summary, unassigns the agent, assigns `DECK_WATCH_OWNER_USER`. It does **not** move the card unless `targetStackId` is passed (or you use `deck_move_card`).
 
 **Wake Cursor automatically**
 
@@ -128,7 +127,7 @@ DECK_WATCH_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/YOUR_AUTOMATIO
 DECK_WATCH_WEBHOOK_TOKEN=YOUR_WEBHOOK_API_KEY
 ```
 
-Prompt the automation roughly: use nextcloud MCP `deck_watch_pending` / `deck_watch_claim` / do the card work / `deck_watch_complete` with a summary.
+Prompt the automation roughly: use nextcloud MCP `deck_watch_pending` / `deck_watch_claim` / do the card work / `deck_watch_complete` with a summary. Do not move cards unless the user asked.
 
 Debug endpoints (same bearer token as MCP):
 

@@ -21,7 +21,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_status",
     {
       description:
-        "Show Deck watcher status: last poll, pending/claimed counts, and queued cards assigned to the agent user.",
+        "Show Deck watcher status: last poll, pending/claimed counts, and queued cards assigned to the agent user on any board.",
       inputSchema: {},
     },
     async () => {
@@ -38,7 +38,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_poll",
     {
       description:
-        "Force an immediate Deck watcher poll for cards assigned to the agent user.",
+        "Force an immediate Deck watcher poll for cards assigned to the agent user (any board/stack).",
       inputSchema: {},
     },
     async () => {
@@ -55,7 +55,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_pending",
     {
       description:
-        "List watched cards. status=pending (default), claimed, completed, or open (pending+claimed).",
+        "List watched cards from any board. status=pending (default), claimed, completed, or open (pending+claimed).",
       inputSchema: {
         status: z
           .enum(["pending", "claimed", "completed", "open"])
@@ -79,16 +79,24 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_claim",
     {
       description:
-        "Claim a watched card: optional move to Doing stack, post an ack comment. Keeps assignment on the agent user.",
+        "Claim a watched card and post an ack comment. Does not move the card unless targetStackId is explicitly provided.",
       inputSchema: {
         cardId: z.number().int().positive(),
         message: z.string().optional(),
+        targetStackId: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Optional: only set when the user asked to move the card"),
       },
     },
-    async ({ cardId, message }) => {
+    async ({ cardId, message, targetStackId }) => {
       try {
         const watcher = requireWatcher();
-        return textResult(await watcher.claim(cardId, message));
+        return textResult(
+          await watcher.claim(cardId, message, { targetStackId })
+        );
       } catch (error) {
         return errorResult(error);
       }
@@ -99,7 +107,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_complete",
     {
       description:
-        "Finish a watched card: post @cursor-done summary, move to Done (if stack exists), unassign agent, assign owner user back.",
+        "Finish a watched card: post @cursor-done summary, unassign agent, assign owner back. Does not move the card unless targetStackId is explicitly provided.",
       inputSchema: {
         cardId: z.number().int().positive(),
         summary: z
@@ -107,14 +115,22 @@ export function registerWatchTools(server: McpServer): void {
           .min(1)
           .describe("What was done; posted as an @cursor-done comment"),
         assignOwner: z.boolean().default(true),
-        moveToDone: z.boolean().default(true),
+        targetStackId: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe("Optional: only set when the user asked to move the card"),
       },
     },
-    async ({ cardId, summary, assignOwner, moveToDone }) => {
+    async ({ cardId, summary, assignOwner, targetStackId }) => {
       try {
         const watcher = requireWatcher();
         return textResult(
-          await watcher.complete(cardId, summary, { assignOwner, moveToDone })
+          await watcher.complete(cardId, summary, {
+            assignOwner,
+            targetStackId,
+          })
         );
       } catch (error) {
         return errorResult(error);
