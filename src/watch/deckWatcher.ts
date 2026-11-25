@@ -417,6 +417,13 @@ export class DeckWatcher {
         this.state.cards[key]!.claimedAt = undefined;
         this.state.cards[key]!.updatedAt = nowIso();
       }
+      const queuedCard = this.state.cards[key];
+      if (queuedCard) {
+        queuedCard.status = "pending";
+        queuedCard.agentRepliedAt = undefined;
+        queuedCard.updatedAt = nowIso();
+      }
+      watched.agentRepliedAt = undefined;
 
       if (this.config.deckWatch.autoAck) {
         try {
@@ -521,7 +528,7 @@ export class DeckWatcher {
         `authorMention=${formatDeckUserMention(comment.author)}`,
         `ownerMention=${formatDeckUserMention(ownerUser)}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        "Steps: deck_watch_claim (no message) → exactly ONE deck_add_comment that answers the user and states the outcome (this is their done notification) → deck_watch_complete. notifyUserId optional when DECK_WATCH_AUTO_MENTION_REPLY=true.",
+        "Steps: deck_watch_claim (no message) → do the requested card/file changes → exactly ONE deck_add_comment confirming what you did (required even for description-only tasks) → deck_watch_complete.",
         `User comment:\n${comment.message}`,
       ].join("\n"),
       source: "nextcloud-mcp-deck-watch",
@@ -700,8 +707,9 @@ export class DeckWatcher {
           (c.status === "pending" || c.status === "claimed")
       )
       .sort((a, b) => b.commentId - a.commentId);
-    if (openComments[0]?.author) {
-      return openComments[0].author;
+    const top = openComments[0];
+    if (top?.author) {
+      return top.author;
     }
     const card = this.state.cards[String(cardId)];
     if (card && (card.status === "pending" || card.status === "claimed")) {
