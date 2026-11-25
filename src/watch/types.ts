@@ -68,6 +68,8 @@ export type WatchSnapshot = {
   requireReplyBeforeComplete: boolean;
   lastPollAt: string | null;
   lastPollError: string | null;
+  lastWebhookError: string | null;
+  webhookConfigured: boolean;
   pendingCount: number;
   claimedCount: number;
   pendingCommentCount: number;
