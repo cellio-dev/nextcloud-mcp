@@ -6,9 +6,10 @@ import { registerDeckTools } from "./tools/deck.js";
 import { registerShareTools } from "./tools/shares.js";
 import { registerNotesTools } from "./tools/notes.js";
 import { registerSystemTools } from "./tools/system.js";
+import { registerWatchTools } from "./tools/watch.js";
 
 export const SERVER_NAME = "nextcloud-mcp";
-export const SERVER_VERSION = "1.0.0";
+export const SERVER_VERSION = "1.1.0";
 
 export function createMcpServer(config: AppConfig): McpServer {
   const client = new NextcloudClient(config);
@@ -22,7 +23,9 @@ export function createMcpServer(config: AppConfig): McpServer {
   registerDeckTools(server, client);
   registerShareTools(server, client);
   registerNotesTools(server, client);
+  registerWatchTools(server);
 
+  const watch = config.deckWatch;
   server.registerResource(
     "nextcloud-overview",
     "nextcloud://overview",
@@ -40,13 +43,15 @@ export function createMcpServer(config: AppConfig): McpServer {
 Connected to: ${config.nextcloudUrl}
 User: ${config.username}
 Files root: ${config.filesRoot || "/"}
+Deck watcher: ${watch.enabled ? `on (agent=${watch.agentUser}, owner=${watch.ownerUser})` : "off"}
 
 ## Suggested workflow
 1. Call \`nextcloud_ping\` to verify access.
 2. Use \`files_*\` tools for project docs, specs, and artifacts.
 3. Use \`deck_*\` tools for task boards, cards, and comments.
-4. Use \`notes_*\` for lightweight scratchpads (Notes app required).
-5. Use \`shares_*\` when you need to share a path with a teammate or via public link.
+4. With watcher enabled: assign a card to \`${watch.agentUser}\` → agent uses \`deck_watch_pending\` / \`deck_watch_claim\` / \`deck_watch_complete\` (assigns back to \`${watch.ownerUser}\`).
+5. Use \`notes_*\` for lightweight scratchpads (Notes app required).
+6. Use \`shares_*\` when you need to share a path with a teammate or via public link.
 `,
         },
       ],

@@ -1,3 +1,17 @@
+export type DeckWatchConfig = {
+  enabled: boolean;
+  boardIds: number[];
+  agentUser: string;
+  ownerUser: string;
+  intervalSec: number;
+  statePath: string;
+  webhookUrl: string;
+  webhookToken: string;
+  doingStackTitle: string;
+  doneStackTitle: string;
+  autoAck: boolean;
+};
+
 export type AppConfig = {
   nextcloudUrl: string;
   username: string;
@@ -7,6 +21,7 @@ export type AppConfig = {
   host: string;
   filesRoot: string;
   maxReadBytes: number;
+  deckWatch: DeckWatchConfig;
 };
 
 function required(name: string): string {
@@ -20,6 +35,22 @@ function required(name: string): string {
 function optional(name: string, fallback: string): string {
   const value = process.env[name]?.trim();
   return value && value.length > 0 ? value : fallback;
+}
+
+function parseBool(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+function parseBoardIds(raw: string): number[] {
+  if (!raw.trim()) return [];
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => Number.parseInt(part, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
 }
 
 export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfig {
@@ -44,6 +75,17 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
     throw new Error("NEXTCLOUD_MAX_READ_BYTES must be an integer >= 1024");
   }
 
+  const intervalSec = Number.parseInt(
+    optional("DECK_WATCH_INTERVAL_SEC", "60"),
+    10
+  );
+  if (!Number.isFinite(intervalSec) || intervalSec < 15) {
+    throw new Error("DECK_WATCH_INTERVAL_SEC must be an integer >= 15");
+  }
+
+  const agentUser = optional("DECK_WATCH_AGENT_USER", username);
+  const ownerUser = optional("DECK_WATCH_OWNER_USER", username);
+
   return {
     nextcloudUrl,
     username,
@@ -53,5 +95,21 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
     host: optional("HOST", "0.0.0.0"),
     filesRoot: optional("NEXTCLOUD_FILES_ROOT", "").replace(/^\/+|\/+$/g, ""),
     maxReadBytes,
+    deckWatch: {
+      enabled: parseBool("DECK_WATCH_ENABLED", false),
+      boardIds: parseBoardIds(optional("DECK_WATCH_BOARD_IDS", "")),
+      agentUser,
+      ownerUser,
+      intervalSec,
+      statePath: optional(
+        "DECK_WATCH_STATE_PATH",
+        "data/deck-watch-state.json"
+      ),
+      webhookUrl: optional("DECK_WATCH_WEBHOOK_URL", ""),
+      webhookToken: optional("DECK_WATCH_WEBHOOK_TOKEN", ""),
+      doingStackTitle: optional("DECK_WATCH_DOING_STACK", "Doing"),
+      doneStackTitle: optional("DECK_WATCH_DONE_STACK", "Done"),
+      autoAck: parseBool("DECK_WATCH_AUTO_ACK", true),
+    },
   };
 }

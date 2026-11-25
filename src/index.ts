@@ -5,6 +5,11 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { loadConfig } from "./config.js";
 import { createBearerAuth } from "./auth.js";
 import { createMcpServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
+import {
+  DeckWatcher,
+  getSharedWatcher,
+  setSharedWatcher,
+} from "./watch/deckWatcher.js";
 
 function useStdio(): boolean {
   return process.argv.includes("--stdio") || process.env.MCP_TRANSPORT === "stdio";
@@ -12,6 +17,12 @@ function useStdio(): boolean {
 
 async function startStdio(): Promise<void> {
   const config = loadConfig({ requireMcpAuth: false });
+  // Watcher needs a long-lived process; enable in stdio too if configured.
+  if (config.deckWatch.enabled) {
+    const watcher = new DeckWatcher(config);
+    setSharedWatcher(watcher);
+    await watcher.start();
+  }
   const server = createMcpServer(config);
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -22,18 +33,63 @@ async function startStdio(): Promise<void> {
 
 async function startHttp(): Promise<void> {
   const config = loadConfig({ requireMcpAuth: true });
+
+  if (config.deckWatch.enabled) {
+    const watcher = new DeckWatcher(config);
+    setSharedWatcher(watcher);
+    await watcher.start();
+  }
+
   const app = express();
   app.use(express.json({ limit: "4mb" }));
 
   app.get("/health", (_req, res) => {
+    const watcher = getSharedWatcher();
+    const snap = watcher?.snapshot();
     res.json({
       ok: true,
       name: SERVER_NAME,
       version: SERVER_VERSION,
       nextcloudUrl: config.nextcloudUrl,
       username: config.username,
+      deckWatch: snap
+        ? {
+            enabled: true,
+            pendingCount: snap.pendingCount,
+            lastPollAt: snap.lastPollAt,
+            lastPollError: snap.lastPollError,
+          }
+        : { enabled: false },
     });
   });
+
+  app.get("/watch/status", createBearerAuth(config.mcpAuthToken), (_req, res) => {
+    const watcher = getSharedWatcher();
+    if (!watcher) {
+      res.status(404).json({
+        error: "watcher_disabled",
+        message: "Set DECK_WATCH_ENABLED=true to enable the Deck watcher.",
+      });
+      return;
+    }
+    res.json(watcher.snapshot());
+  });
+
+  app.post(
+    "/watch/poll",
+    createBearerAuth(config.mcpAuthToken),
+    async (_req, res) => {
+      const watcher = getSharedWatcher();
+      if (!watcher) {
+        res.status(404).json({
+          error: "watcher_disabled",
+          message: "Set DECK_WATCH_ENABLED=true to enable the Deck watcher.",
+        });
+        return;
+      }
+      res.json(await watcher.pollOnce());
+    }
+  );
 
   app.use("/mcp", createBearerAuth(config.mcpAuthToken));
 
