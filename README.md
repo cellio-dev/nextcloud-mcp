@@ -98,36 +98,39 @@ npm ci && npm run build
 
 Optional: set `NEXTCLOUD_FILES_ROOT=Projects/Agent` so file tools stay inside one project folder.
 
-## Deck watcher (assign → agent → assign back)
+## Deck watcher (assign **or** `@cursor` comments)
 
-Works on **any board / any card**. No Inbox/Doing/Done layout required. Cards stay where they are unless you explicitly ask to move them.
+Works on **any board / any card**. No special stack layout. Cards stay put unless you ask to move them.
 
 ```env
 DECK_WATCH_ENABLED=true
 DECK_WATCH_AGENT_USER=cursor
 DECK_WATCH_OWNER_USER=your-username
-# Optional: limit to specific boards. Empty = all boards the agent can see.
-# DECK_WATCH_BOARD_IDS=
+DECK_WATCH_COMMENT_TRIGGER=true
+DECK_WATCH_COMMENT_MENTION=@cursor
 DECK_WATCH_INTERVAL_SEC=60
 ```
 
-**Human loop**
-1. Put the ask in the card title/description (and comments) on any board.
-2. Assign the card to `DECK_WATCH_AGENT_USER`.
-3. Watcher queues it (optional `@cursor-ack` comment) and can POST a Cursor Automation webhook.
-4. Agent: `deck_watch_pending` → `deck_watch_claim` → do work → `deck_watch_complete`.
-5. Complete posts a summary, unassigns the agent, assigns `DECK_WATCH_OWNER_USER`. It does **not** move the card unless `targetStackId` is passed (or you use `deck_move_card`).
+### Talk to Cursor in comments
+1. On any card, comment e.g. `@cursor please add a test reply`.
+2. Watcher posts `@cursor-ack: seen…` and queues the comment.
+3. With a Cursor Automation webhook configured, Cursor wakes, does the work, and replies on the same card via `deck_add_comment`.
+4. `deck_watch_complete` posts `@cursor-done: …` (optional reassignment to you).
 
-**Wake Cursor automatically**
+You can still **assign** the card to `cursor` as an alternate enqueue signal.
 
-Create a [Cursor Automation](https://cursor.com/automations) with a **Webhook** trigger and MCP access to this server. Then set:
+### Wake Cursor automatically (required for hands-off replies)
+
+Create a [Cursor Automation](https://cursor.com/automations) with a **Webhook** trigger and this MCP server enabled. Set:
 
 ```env
 DECK_WATCH_WEBHOOK_URL=https://api2.cursor.sh/automations/webhook/YOUR_AUTOMATION_ID
 DECK_WATCH_WEBHOOK_TOKEN=YOUR_WEBHOOK_API_KEY
 ```
 
-Prompt the automation roughly: use nextcloud MCP `deck_watch_pending` / `deck_watch_claim` / do the card work / `deck_watch_complete` with a summary. Do not move cards unless the user asked.
+Suggested automation prompt:
+
+> When triggered from nextcloud-mcp, call `deck_watch_pending`, `deck_watch_claim` on the card, read the latest `@cursor` comment, do what it asks using Nextcloud MCP tools, reply with `deck_add_comment`, then `deck_watch_complete`. Do not move the card unless the user asked.
 
 Debug endpoints (same bearer token as MCP):
 
@@ -154,6 +157,8 @@ State is stored at `DECK_WATCH_STATE_PATH` (Docker volume `/data` by default).
 | `DECK_WATCH_INTERVAL_SEC` | no | Poll interval (min 15, default 60) |
 | `DECK_WATCH_WEBHOOK_URL` | no | Optional Cursor Automation webhook |
 | `DECK_WATCH_WEBHOOK_TOKEN` | no | Bearer token for that webhook |
+| `DECK_WATCH_COMMENT_TRIGGER` | no | Watch for mention comments (default true) |
+| `DECK_WATCH_COMMENT_MENTION` | no | Mention token (default `@cursor`) |
 
 ## Development
 
