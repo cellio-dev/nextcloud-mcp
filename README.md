@@ -122,7 +122,7 @@ DECK_WATCH_INTERVAL_SEC=60
 ### Talk to Cursor in comments
 1. Comment `@cursor …` on any card.
 2. Watcher queues the request (no extra ack comments when `DECK_WATCH_AUTO_ACK=false`).
-3. With a Cursor Automation webhook, the agent replies **once** via `deck_add_comment`, then `deck_watch_complete` (silent by default).
+3. With a Cursor Automation webhook, the agent replies **once** via `deck_add_comment` (that comment **is** your done notification, with an @-mention when configured), then `deck_watch_complete` clears queue state only—it does not replace the reply.
 
 Optional: `DECK_WATCH_ASSIGNMENT_TRIGGER=true` to also enqueue when the card is assigned to `cursor`, and enable complete handoff with `DECK_WATCH_COMPLETE_*`.
 

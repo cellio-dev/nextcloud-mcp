@@ -150,6 +150,7 @@ describe("deck watcher queue", () => {
             )
           );
 
+          await watcher.recordAgentReply(42);
           const completed = await watcher.complete(42, "Watcher shipped");
           assert.equal(completed.card.status, "completed");
           assert.equal(completed.assignedTo, "alice");

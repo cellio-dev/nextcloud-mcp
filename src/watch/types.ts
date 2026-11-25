@@ -65,6 +65,7 @@ export type WatchSnapshot = {
   completeAssignOwner: boolean;
   autoMentionReply: boolean;
   oneReplyPerJob: boolean;
+  requireReplyBeforeComplete: boolean;
   lastPollAt: string | null;
   lastPollError: string | null;
   pendingCount: number;

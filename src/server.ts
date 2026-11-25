@@ -9,7 +9,7 @@ import { registerSystemTools } from "./tools/system.js";
 import { registerWatchTools } from "./tools/watch.js";
 
 export const SERVER_NAME = "nextcloud-mcp";
-export const SERVER_VERSION = "1.3.2";
+export const SERVER_VERSION = "1.3.3";
 
 export function createMcpServer(config: AppConfig): McpServer {
   const client = new NextcloudClient(config);

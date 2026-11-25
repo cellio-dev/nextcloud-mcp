@@ -111,7 +111,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_complete",
     {
       description:
-        "Mark watched work complete and clear queue state. Posts @cursor-done only when DECK_WATCH_POST_DONE_COMMENT=true. Assign handoff follows DECK_WATCH_COMPLETE_* env unless overridden.",
+        "Mark watched work complete after deck_add_comment (required when DECK_WATCH_REQUIRE_REPLY_BEFORE_COMPLETE=true). Posts @cursor-done only when DECK_WATCH_POST_DONE_COMMENT=true.",
       inputSchema: {
         cardId: z.number().int().positive(),
         summary: z
