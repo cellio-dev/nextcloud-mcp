@@ -1,22 +1,63 @@
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
-import type { WatchState } from "./types.js";
+import type { WatchState, WatchedCard } from "./types.js";
+
+function emptyState(): WatchState {
+  return {
+    version: 2,
+    cards: {},
+    comments: {},
+    processedCommentIds: {},
+    cardLastModified: {},
+  };
+}
+
+function migrate(raw: unknown): WatchState {
+  if (!raw || typeof raw !== "object") return emptyState();
+  const obj = raw as Record<string, unknown>;
+  if (obj.version === 2 && typeof obj.cards === "object" && obj.cards) {
+    return {
+      version: 2,
+      cards: obj.cards as WatchState["cards"],
+      comments: (obj.comments as WatchState["comments"]) ?? {},
+      processedCommentIds:
+        (obj.processedCommentIds as WatchState["processedCommentIds"]) ?? {},
+      cardLastModified:
+        (obj.cardLastModified as WatchState["cardLastModified"]) ?? {},
+    };
+  }
+  if (obj.version === 1 && typeof obj.cards === "object" && obj.cards) {
+    const cards: Record<string, WatchedCard> = {};
+    for (const [key, value] of Object.entries(
+      obj.cards as Record<string, WatchedCard>
+    )) {
+      cards[key] = {
+        ...value,
+        trigger: value.trigger ?? "assignment",
+      };
+    }
+    return {
+      version: 2,
+      cards,
+      comments: {},
+      processedCommentIds: {},
+      cardLastModified: {},
+    };
+  }
+  return emptyState();
+}
 
 export async function loadWatchState(statePath: string): Promise<WatchState> {
   try {
     const raw = await readFile(statePath, "utf8");
-    const parsed = JSON.parse(raw) as WatchState;
-    if (!parsed || parsed.version !== 1 || typeof parsed.cards !== "object") {
-      return { version: 1, cards: {} };
-    }
-    return parsed;
+    return migrate(JSON.parse(raw));
   } catch (error) {
     const code =
       error && typeof error === "object" && "code" in error
         ? String((error as { code?: string }).code)
         : "";
     if (code === "ENOENT") {
-      return { version: 1, cards: {} };
+      return emptyState();
     }
     throw error;
   }

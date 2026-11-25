@@ -8,6 +8,10 @@ export type DeckWatchConfig = {
   webhookUrl: string;
   webhookToken: string;
   autoAck: boolean;
+  /** Watch card comments for mention triggers (e.g. @cursor). */
+  commentTrigger: boolean;
+  /** Case-insensitive mention token that must appear in a comment. */
+  commentMention: string;
 };
 
 export type AppConfig = {
@@ -106,6 +110,8 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
       webhookUrl: optional("DECK_WATCH_WEBHOOK_URL", ""),
       webhookToken: optional("DECK_WATCH_WEBHOOK_TOKEN", ""),
       autoAck: parseBool("DECK_WATCH_AUTO_ACK", true),
+      commentTrigger: parseBool("DECK_WATCH_COMMENT_TRIGGER", true),
+      commentMention: optional("DECK_WATCH_COMMENT_MENTION", "@cursor"),
     },
   };
 }

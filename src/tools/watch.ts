@@ -21,7 +21,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_status",
     {
       description:
-        "Show Deck watcher status: last poll, pending/claimed counts, and queued cards assigned to the agent user on any board.",
+        "Show Deck watcher status including pending assignment cards and @cursor comment requests.",
       inputSchema: {},
     },
     async () => {
@@ -38,7 +38,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_poll",
     {
       description:
-        "Force an immediate Deck watcher poll for cards assigned to the agent user (any board/stack).",
+        "Force an immediate poll for assignments and @cursor (or configured mention) comments on any board.",
       inputSchema: {},
     },
     async () => {
@@ -55,7 +55,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_pending",
     {
       description:
-        "List watched cards from any board. status=pending (default), claimed, completed, or open (pending+claimed).",
+        "List pending work: assigned cards and comment requests (status=pending|claimed|completed|open).",
       inputSchema: {
         status: z
           .enum(["pending", "claimed", "completed", "open"])
@@ -68,6 +68,7 @@ export function registerWatchTools(server: McpServer): void {
         return textResult({
           status,
           cards: watcher.pending(status),
+          comments: watcher.pendingComments(status),
         });
       } catch (error) {
         return errorResult(error);
@@ -79,7 +80,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_claim",
     {
       description:
-        "Claim a watched card and post an ack comment. Does not move the card unless targetStackId is explicitly provided.",
+        "Claim a watched card (from assignment or @cursor comment), post an ack. Does not move unless targetStackId is set.",
       inputSchema: {
         cardId: z.number().int().positive(),
         message: z.string().optional(),
@@ -107,7 +108,7 @@ export function registerWatchTools(server: McpServer): void {
     "deck_watch_complete",
     {
       description:
-        "Finish a watched card: post @cursor-done summary, unassign agent, assign owner back. Does not move the card unless targetStackId is explicitly provided.",
+        "Finish watched work: post @cursor-done, unassign agent if assigned, assign owner back. Does not move unless targetStackId is set.",
       inputSchema: {
         cardId: z.number().int().positive(),
         summary: z
