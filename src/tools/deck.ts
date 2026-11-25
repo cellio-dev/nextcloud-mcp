@@ -467,8 +467,7 @@ export function registerDeckTools(
         if (!uid && deckWatch.autoMentionReply) {
           uid =
             watcher?.notifyUserIdForCard(cardId) ??
-            deckWatch.ownerUser?.trim() ||
-            undefined;
+            (deckWatch.ownerUser?.trim() || undefined);
         }
         if (uid) {
           const mention = formatDeckUserMention(uid);
