@@ -50,6 +50,8 @@ export type WatchSnapshot = {
   enabled: boolean;
   agentUser: string;
   ownerUser: string;
+  /** Deck-safe @-mention for ownerUser (quoted when uid contains @). */
+  ownerMention: string;
   intervalSec: number;
   autoAck: boolean;
   assignmentTrigger: boolean;

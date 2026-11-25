@@ -1,6 +1,7 @@
 import type { AppConfig } from "../config.js";
 import { NextcloudClient } from "../nextcloud/client.js";
 import * as deck from "../nextcloud/deck.js";
+import { formatDeckUserMention } from "../nextcloud/mentions.js";
 import { loadWatchState, saveWatchState } from "./state.js";
 import type {
   WatchCardStatus,
@@ -132,6 +133,7 @@ export class DeckWatcher {
       enabled: this.enabled,
       agentUser: w.agentUser,
       ownerUser: w.ownerUser,
+      ownerMention: formatDeckUserMention(w.ownerUser),
       intervalSec: w.intervalSec,
       autoAck: w.autoAck,
       assignmentTrigger: w.assignmentTrigger,
@@ -509,8 +511,10 @@ export class DeckWatcher {
         `cardId=${comment.cardId} boardId=${comment.boardId} stackId=${comment.stackId} commentId=${comment.commentId}`,
         `cardTitle=${comment.cardTitle}`,
         `author=${comment.author}`,
+        `authorMention=${formatDeckUserMention(comment.author)}`,
+        `ownerMention=${formatDeckUserMention(ownerUser)}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        "Steps: deck_watch_claim (silent) → read the ask below → one deck_add_comment reply → deck_watch_complete (summary optional, no extra @cursor-done if postDoneComment is false).",
+        "Steps: deck_watch_claim (silent) → read the ask below → one deck_add_comment reply (use notifyUserId=author uid for @ notifications, not display name) → deck_watch_complete without assignOwner.",
         `User comment:\n${comment.message}`,
       ].join("\n"),
       source: "nextcloud-mcp-deck-watch",
@@ -571,7 +575,9 @@ export class DeckWatcher {
   }> {
     const card = this.requireCard(cardId);
     const watch = this.config.deckWatch;
-    const assignOwner = options.assignOwner ?? watch.completeAssignOwner;
+    // Env must allow assign-back; automation cannot override when env is false.
+    const assignOwner =
+      watch.completeAssignOwner && (options.assignOwner ?? true);
     const movedToStackId = await this.maybeMoveCard(card, options.targetStackId);
 
     const doneText = summary.trim();
