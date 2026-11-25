@@ -27,6 +27,8 @@ export type DeckWatchConfig = {
   autoMentionReply: boolean;
   /** Reject a second deck_add_comment before deck_watch_complete (per job). */
   oneReplyPerJob: boolean;
+  /** Require deck_add_comment (or postDoneComment summary) before complete. */
+  requireReplyBeforeComplete: boolean;
 };
 
 export type AppConfig = {
@@ -134,6 +136,10 @@ export function loadConfig(options: { requireMcpAuth?: boolean } = {}): AppConfi
       completeAssignOwner: parseBool("DECK_WATCH_COMPLETE_ASSIGN_OWNER", false),
       autoMentionReply: parseBool("DECK_WATCH_AUTO_MENTION_REPLY", true),
       oneReplyPerJob: parseBool("DECK_WATCH_ONE_REPLY_PER_JOB", true),
+      requireReplyBeforeComplete: parseBool(
+        "DECK_WATCH_REQUIRE_REPLY_BEFORE_COMPLETE",
+        true
+      ),
     },
   };
 }

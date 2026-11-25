@@ -104,6 +104,7 @@ describe("quiet deck comments defaults", () => {
         const watcher = new DeckWatcher(config);
         await watcher.pollOnce();
         await watcher.claim(99);
+        await watcher.recordAgentReply(99);
         await watcher.complete(99, "ignored summary");
         assert.equal(posts.length, 0);
       }
@@ -160,6 +161,7 @@ describe("quiet deck comments defaults", () => {
         const watcher = new DeckWatcher(config);
         await watcher.pollOnce();
         await watcher.claim(50);
+        await watcher.recordAgentReply(50);
         await watcher.complete(50, "", { assignOwner: true });
         assert.equal(assignCalls.length, 0);
       }

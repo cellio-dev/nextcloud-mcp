@@ -66,4 +66,40 @@ describe("agent reply guardrails", () => {
       /ack\/status/
     );
   });
+
+  it("complete requires a user reply comment first", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "nc-reply3-"));
+    process.env.NEXTCLOUD_URL = "https://cloud.example.com";
+    process.env.NEXTCLOUD_USERNAME = "cursor";
+    process.env.NEXTCLOUD_APP_PASSWORD = "pass";
+    process.env.MCP_AUTH_TOKEN = "token";
+    process.env.DECK_WATCH_STATE_PATH = path.join(dir, "s3.json");
+    process.env.DECK_WATCH_REQUIRE_REPLY_BEFORE_COMPLETE = "true";
+    const config = loadConfig({ requireMcpAuth: false });
+    const watcher = new DeckWatcher(config);
+    (watcher as unknown as { state: Record<string, unknown> }).state = {
+      version: 2,
+      cards: {
+        "3": {
+          cardId: 3,
+          boardId: 1,
+          stackId: 2,
+          status: "claimed",
+          title: "T",
+          description: "",
+          stackTitle: "",
+          trigger: "comment",
+          firstSeenAt: "t",
+          updatedAt: "t",
+        },
+      },
+      comments: {},
+      processedCommentIds: {},
+      cardLastModified: {},
+    };
+    await assert.rejects(
+      () => watcher.complete(3),
+      /deck_add_comment/
+    );
+  });
 });

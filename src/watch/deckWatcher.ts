@@ -149,6 +149,7 @@ export class DeckWatcher {
       completeAssignOwner: w.completeAssignOwner,
       autoMentionReply: w.autoMentionReply,
       oneReplyPerJob: w.oneReplyPerJob,
+      requireReplyBeforeComplete: w.requireReplyBeforeComplete,
       lastPollAt: this.lastPollAt,
       lastPollError: this.lastPollError,
       pendingCount: cards.filter((c) => c.status === "pending").length,
@@ -520,7 +521,7 @@ export class DeckWatcher {
         `authorMention=${formatDeckUserMention(comment.author)}`,
         `ownerMention=${formatDeckUserMention(ownerUser)}`,
         `agentUser=${agentUser} ownerUser=${ownerUser}`,
-        "Steps: deck_watch_claim (no message) → exactly ONE deck_add_comment with the answer (no separate ack/status comment) → deck_watch_complete. notifyUserId is optional; server auto-mentions author when DECK_WATCH_AUTO_MENTION_REPLY=true.",
+        "Steps: deck_watch_claim (no message) → exactly ONE deck_add_comment that answers the user and states the outcome (this is their done notification) → deck_watch_complete. notifyUserId optional when DECK_WATCH_AUTO_MENTION_REPLY=true.",
         `User comment:\n${comment.message}`,
       ].join("\n"),
       source: "nextcloud-mcp-deck-watch",
@@ -587,6 +588,21 @@ export class DeckWatcher {
     const movedToStackId = await this.maybeMoveCard(card, options.targetStackId);
 
     const doneText = summary.trim();
+    if (watch.requireReplyBeforeComplete) {
+      const cardReplied = Boolean(card.agentRepliedAt);
+      const commentReplied = Object.values(this.state.comments).some(
+        (c) =>
+          c.cardId === cardId &&
+          (c.status === "pending" || c.status === "claimed") &&
+          Boolean(c.agentRepliedAt)
+      );
+      const doneViaSummary = watch.postDoneComment && doneText.length > 0;
+      if (!cardReplied && !commentReplied && !doneViaSummary) {
+        throw new Error(
+          `Card ${cardId}: post deck_add_comment with the result for the user before deck_watch_complete. That comment is their notification; complete alone is silent.`
+        );
+      }
+    }
     if (watch.postDoneComment && doneText) {
       await deck.createComment(
         this.client,
