@@ -464,8 +464,11 @@ export function registerDeckTools(
 
         let text = message;
         let uid = notifyUserId?.trim();
-        if (!uid && deckWatch.autoMentionReply && watcher) {
-          uid = watcher.notifyUserIdForCard(cardId);
+        if (!uid && deckWatch.autoMentionReply) {
+          uid =
+            watcher?.notifyUserIdForCard(cardId) ??
+            deckWatch.ownerUser?.trim() ||
+            undefined;
         }
         if (uid) {
           const mention = formatDeckUserMention(uid);
@@ -477,7 +480,10 @@ export function registerDeckTools(
         if (watcher) {
           await watcher.recordAgentReply(cardId);
         }
-        return textResult(result);
+        return textResult({
+          postedMessage: text,
+          api: result,
+        });
       } catch (error) {
         return errorResult(error);
       }
