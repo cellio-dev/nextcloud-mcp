@@ -55,11 +55,20 @@ async function startHttp(): Promise<void> {
       deckWatch: snap
         ? {
             enabled: true,
+            webhookConfigured: snap.webhookConfigured,
+            pendingCommentCount: snap.pendingCommentCount,
             pendingCount: snap.pendingCount,
             lastPollAt: snap.lastPollAt,
             lastPollError: snap.lastPollError,
+            lastWebhookError: snap.lastWebhookError,
           }
-        : { enabled: false },
+        : {
+            enabled: config.deckWatch.enabled,
+            webhookConfigured: Boolean(config.deckWatch.webhookUrl),
+            hint: config.deckWatch.enabled
+              ? "Watcher config loaded but poller not running — check container logs."
+              : "Set DECK_WATCH_ENABLED=true",
+          },
     });
   });
 
