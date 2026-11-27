@@ -1,3 +1,6 @@
+# nextcloud-mcp — Docker at repository root.
+# Dev: cp .env.example .env && docker compose up -d --build
+# Local Node (no Docker): npm run dev
 services:
   nextcloud-mcp:
     build: .
